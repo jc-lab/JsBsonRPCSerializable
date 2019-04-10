@@ -321,7 +321,7 @@ namespace JsBsonRPC {
 
 #define _JSBSONRPC_MAKESERIALIZE_BASICSMALLTYPE(TYPE, SERTYPE, INT32TYPE, INT64TYPE, BSONTYPE) \
 		template<> \
-		struct ObjectHelper<TYPE> { \
+		struct ObjectHelper<0, TYPE> { \
 			static uint32_t serialize(std::vector<unsigned char> &payload, const std::string& key, const TYPE &object) { \
 				uint32_t payloadLen = 1 + sizeof(SERTYPE); \
 				int i; \
@@ -366,7 +366,7 @@ namespace JsBsonRPC {
 		_JSBSONRPC_MAKESERIALIZE_BASICSMALLTYPE(uint16_t, uint32_t, uint32_t, uint64_t, BSONTYPE_INT32)
 
 		template<>
-		struct ObjectHelper<float> {
+		struct ObjectHelper<0, float> {
 			static uint32_t serialize(std::vector<unsigned char> &payload, const std::string& key, const float &object) {
 				uint32_t payloadLen = 1 + sizeof(double);
 				int i;
