@@ -301,9 +301,92 @@ namespace JsBsonRPC {
 			static void objectClear(TYPE &object) { object = 0; } \
 		};
 
+#define _JSBSONRPC_MAKESERIALIZE_BASICSMALLTYPE(TYPE, SERTYPE, INT32TYPE, INT64TYPE, BSONTYPE) \
+		template<> \
+		struct ObjectHelper<TYPE> { \
+			static uint32_t serialize(std::vector<unsigned char> &payload, const std::string& key, const TYPE &object) { \
+				uint32_t payloadLen = 1 + sizeof(SERTYPE); \
+				int i; \
+				SERTYPE serValue = object; \
+				const unsigned char *carr = (const unsigned char*)&serValue; \
+				payload.push_back(BSONTYPE); \
+				payloadLen += serializeKey(payload, key); \
+				for(i=0; i<sizeof(serValue); i++, carr++) \
+					payload.push_back(*carr); \
+				return payloadLen; \
+			} \
+			static uint32_t deserialize(TYPE &object, uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) { \
+				if(type == BSONTYPE_INT32) { \
+					object = readValue<INT32TYPE>(payload, offset, documentSize); \
+					return sizeof(int32_t); \
+				}else if(type == BSONTYPE_INT64) { \
+					object = readValue<INT64TYPE>(payload, offset, documentSize); \
+					return sizeof(int64_t); \
+				}else if(type == BSONTYPE_BOOL) { \
+					object = readValue<unsigned char>(payload, offset, documentSize); \
+					return 1; \
+				} else if(type == BSONTYPE_DOUBLE) { \
+					object = readValue<double>(payload, offset, documentSize); \
+					return sizeof(double); \
+				} else if((type == BSONTYPE_UTCDATETIME) || (type == BSONTYPE_TIMESTAMP)) { \
+					object = readValue<uint64_t>(payload, offset, documentSize); \
+					return sizeof(uint64_t); \
+				} else if(type == BSONTYPE_NULL) { return 0; } \
+				throw Serializable::ParseException(); \
+			} \
+			static void objectClear(TYPE &object) { object = 0; } \
+		};
+
 		_JSBSONRPC_MAKESERIALIZE_BASICTYPE(int32_t, BSONTYPE_INT32);
+		_JSBSONRPC_MAKESERIALIZE_BASICTYPE(uint32_t, BSONTYPE_INT32);
 		_JSBSONRPC_MAKESERIALIZE_BASICTYPE(int64_t, BSONTYPE_INT64);
+		_JSBSONRPC_MAKESERIALIZE_BASICTYPE(uint64_t, BSONTYPE_INT64);
 		_JSBSONRPC_MAKESERIALIZE_BASICTYPE(double, BSONTYPE_DOUBLE);
+		_JSBSONRPC_MAKESERIALIZE_BASICSMALLTYPE(int8_t, int32_t, int32_t, int64_t, BSONTYPE_INT32)
+		_JSBSONRPC_MAKESERIALIZE_BASICSMALLTYPE(uint8_t, uint32_t, uint32_t, uint64_t, BSONTYPE_INT32)
+		_JSBSONRPC_MAKESERIALIZE_BASICSMALLTYPE(int16_t, int32_t, int32_t, int64_t, BSONTYPE_INT32)
+		_JSBSONRPC_MAKESERIALIZE_BASICSMALLTYPE(uint16_t, uint32_t, uint32_t, uint64_t, BSONTYPE_INT32)
+
+		template<>
+		struct ObjectHelper<float> {
+			static uint32_t serialize(std::vector<unsigned char> &payload, const std::string& key, const float &object) {
+				uint32_t payloadLen = 1 + sizeof(double);
+				int i;
+				double dblValue = object;
+				const unsigned char *carr = (const unsigned char*)&object;
+				payload.push_back(BSONTYPE_DOUBLE);
+				payloadLen += serializeKey(payload, key);
+				for (i = 0; i<sizeof(dblValue); i++, carr++)
+					payload.push_back(*carr);
+				return payloadLen;
+			}
+			static uint32_t deserialize(float &object, uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) {
+				if (type == BSONTYPE_INT32) {
+					object = readValue<int32_t>(payload, offset, documentSize);
+					return sizeof(int32_t);
+				}
+				else if (type == BSONTYPE_INT64) {
+					object = readValue<int64_t>(payload, offset, documentSize);
+					return sizeof(int64_t);
+				}
+				else if (type == BSONTYPE_BOOL) {
+					object = readValue<unsigned char>(payload, offset, documentSize);
+					return 1;
+				}
+				else if (type == BSONTYPE_DOUBLE) {
+					object = readValue<double>(payload, offset, documentSize);
+					return sizeof(double);
+				}
+				else if ((type == BSONTYPE_UTCDATETIME) || (type == BSONTYPE_TIMESTAMP)) {
+					object = readValue<uint64_t>(payload, offset, documentSize);
+					return sizeof(uint64_t);
+				}
+				else if (type == BSONTYPE_NULL) { return 0; }
+				throw Serializable::ParseException();
+			}
+			static void objectClear(float &object) { object = 0; }
+		};
+
 
 		template<>
 		struct ObjectHelper<bool> {
@@ -314,7 +397,7 @@ namespace JsBsonRPC {
 				payload.push_back(object ? 1 : 0);
 				return payloadLen;
 			}
-			uint32_t deserialize(bool &object, uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) {
+			static uint32_t deserialize(bool &object, uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) {
 				if (type == BSONTYPE_BOOL) {
 					object = readValue<unsigned char>(payload, offset, documentSize) ? true : false;
 					return 1;
