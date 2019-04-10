@@ -123,6 +123,7 @@ namespace JsBsonRPC {
 		SType<T> &operator=(const T& value) {
 			this->_isnull = false;
 			this->object = value;
+			return *this;
 		}
 
 		const T& get() const {
