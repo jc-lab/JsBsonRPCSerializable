@@ -77,7 +77,7 @@ namespace JsBsonRPC {
 		}
 	}
 
-	void Serializable::serialize(std::vector<unsigned char>& payload) const throw(UnavailableTypeException)
+	size_t Serializable::serialize(std::vector<unsigned char>& payload) const throw(UnavailableTypeException)
 	{
 		size_t offset = 0;
 		offset = payload.size();
@@ -98,13 +98,14 @@ namespace JsBsonRPC {
 		payload[offset + 1] = ((unsigned char)(totalSize >> 8));
 		payload[offset + 2] = ((unsigned char)(totalSize >> 16));
 		payload[offset + 3] = ((unsigned char)(totalSize >> 24));
+		return payload.size() - offset;
 	}
 
-	void Serializable::deserialize(const std::vector<unsigned char>& payload) throw (ParseException)
+	size_t Serializable::deserialize(const std::vector<unsigned char>& payload, size_t offset) throw (ParseException)
 	{
-		uint32_t offset = 0;
-		internal::BsonParser parser(payload, payload.size(), &offset);
-		parser.parse(this);
+		uint32_t tempOffset = offset;
+		internal::BsonParser parser(payload, payload.size(), &tempOffset);
+		return parser.parse(this);
 	}
 
 	void Serializable::bsonParseHandle(uint8_t type, const std::string &name, const std::vector<unsigned char>& payload, uint32_t *offset, uint32_t docEndPos)

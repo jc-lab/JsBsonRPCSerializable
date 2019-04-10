@@ -103,7 +103,7 @@ namespace JsBsonRPC {
 	public:
 		uint32_t serialize(std::vector<unsigned char> &payload) const override
 		{
-			return internal::ObjectHelper<T>::serialize(payload, this->key, this->object);
+			return internal::ObjectHelper<internal::IsSerializableClass<T>::Result, T>::serialize(payload, this->key, this->object);
 		}
 
 		uint32_t deserialize(uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) override
@@ -113,11 +113,11 @@ namespace JsBsonRPC {
 				setNull();
 				return 0;
 			}
-			return internal::ObjectHelper<T>::deserialize(object, type, payload, offset, documentSize);
+			return internal::ObjectHelper<internal::IsSerializableClass<T>::Result, T>::deserialize(object, type, payload, offset, documentSize);
 		}
 
 		void clear() override {
-			internal::ObjectHelper<T>::objectClear(this->object);
+			internal::ObjectHelper<internal::IsSerializableClass<T>::Result, T>::objectClear(this->object);
 		}
 
 		SType<T> &operator=(const T& value) {
@@ -182,8 +182,8 @@ namespace JsBsonRPC {
 
 		const std::list<internal::STypeCommon*> &serializableMembers() const { return m_members; }
 
-		void serialize(std::vector<unsigned char>& payload) const throw(UnavailableTypeException);
-		void deserialize(const std::vector<unsigned char>& payload) throw (ParseException);
+		size_t serialize(std::vector<unsigned char>& payload) const throw(UnavailableTypeException);
+		size_t deserialize(const std::vector<unsigned char>& payload, size_t offset = 0) throw (ParseException);
 
 		void serializableClearObjects();
 
@@ -262,13 +262,30 @@ namespace JsBsonRPC {
 			uint32_t parse(BsonParseHandler *handler);
 		};
 
-		template<typename T>
+		template<typename D>
+		class IsSerializableClass
+		{
+			class No { };
+			class Yes { No no[3]; };
+
+			static Yes Test(Serializable*); // not defined
+			static No Test(...); // not defined 
+
+			static void Constraints(D* p) { Serializable* pb = p; pb = p; }
+
+		public:
+			enum { Result = (sizeof(Test(static_cast<D*>(0))) == sizeof(Yes)) ? 1 : 0 };
+
+			IsSerializableClass() { void(*p)(D*) = Constraints; }
+		};
+
+		template<int PreType, typename T>
 		struct ObjectHelper {
 		};
 
 #define _JSBSONRPC_MAKESERIALIZE_BASICTYPE(TYPE, BSONTYPE) \
 		template<> \
-		struct ObjectHelper<TYPE> { \
+		struct ObjectHelper<0, TYPE> { \
 			static uint32_t serialize(std::vector<unsigned char> &payload, const std::string& key, const TYPE &object) { \
 				uint32_t payloadLen = 1 + sizeof(TYPE); \
 				int i; \
@@ -306,7 +323,7 @@ namespace JsBsonRPC {
 		_JSBSONRPC_MAKESERIALIZE_BASICTYPE(double, BSONTYPE_DOUBLE);
 
 		template<>
-		struct ObjectHelper<bool> {
+		struct ObjectHelper<0, bool> {
 			static uint32_t serialize(std::vector<unsigned char> &payload, const std::string& key, const bool &object) {
 				uint32_t payloadLen = 2;
 				payload.push_back(internal::BSONTYPE_BOOL);
@@ -333,7 +350,7 @@ namespace JsBsonRPC {
 		};
 
 		template<>
-		struct ObjectHelper<std::string> {
+		struct ObjectHelper<0, std::string> {
 			static uint32_t serialize(std::vector<unsigned char> &payload, const std::string& key, const std::string &object) {
 				uint32_t len = object.length() + 1;
 				uint32_t payloadLen = 5 + len;
@@ -370,7 +387,7 @@ namespace JsBsonRPC {
 		};
 
 		template<typename T>
-		struct ObjectHelper< std::vector<T> > {
+		struct ObjectHelper< 0, std::vector<T> > {
 			static uint32_t serialize(std::vector<unsigned char> &payload, const std::string& key, const std::vector<T> &object) {
 				size_t i, len = object.size();
 				uint32_t totallen = len * sizeof(T);
@@ -428,7 +445,7 @@ namespace JsBsonRPC {
 		};
 
 		template<typename T>
-		struct ObjectHelper< std::list<T> > : public BsonParseHandler {
+		struct ObjectHelper< 0, std::list<T> > : public BsonParseHandler {
 			std::list<T> &refObject;
 			ObjectHelper(std::list<T> &object) : refObject(object) {}
 
@@ -447,7 +464,7 @@ namespace JsBsonRPC {
 				{
 					// doucment
 					_my_itoa(i, seqKey, sizeof(seqKey), 10);
-					subDocumentSize += ObjectHelper<T>::serialize(payload, seqKey, *iter);
+					subDocumentSize += ObjectHelper<0, T>::serialize(payload, seqKey, *iter);
 					i++;
 				}
 				// DOCUMENT FOOTER : END
@@ -461,7 +478,7 @@ namespace JsBsonRPC {
 			}
 			static uint32_t deserialize(std::list<T> &object, uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) {
 				BsonParser parser(payload, documentSize, offset);
-				ObjectHelper< std::list<T> > helper(object);
+				ObjectHelper< 0, std::list<T> > helper(object);
 				object.clear();
 				return parser.parse(&helper);
 			}
@@ -470,13 +487,13 @@ namespace JsBsonRPC {
 			}
 			void bsonParseHandle(uint8_t type, const std::string &name, const std::vector<unsigned char>& payload, uint32_t *offset, uint32_t docEndPos) override {
 				T temp;
-				ObjectHelper<T>::deserialize(temp, type, payload, offset, docEndPos);
+				ObjectHelper<internal::IsSerializableClass<T>::Result, T>::deserialize(temp, type, payload, offset, docEndPos);
 				refObject.push_back(temp);
 			};
 		};
 
 		template<typename T>
-		struct ObjectHelper< std::map<std::string, T> > : public BsonParseHandler {
+		struct ObjectHelper< 0, std::map<std::string, T> > : public BsonParseHandler {
 			std::map<std::string, T> &refObject;
 			ObjectHelper(std::map<std::string, T> &object) : refObject(object) {}
 
@@ -493,7 +510,7 @@ namespace JsBsonRPC {
 				for (std::map<std::string, T>::const_iterator iter = object.begin(); iter != object.end(); iter++)
 				{
 					// doucment
-					subDocumentSize += ObjectHelper<T>::serialize(payload, iter->first, iter->second);
+					subDocumentSize += ObjectHelper<0, T>::serialize(payload, iter->first, iter->second);
 				}
 				// DOCUMENT FOOTER : END
 				payload.push_back(0);
@@ -506,7 +523,7 @@ namespace JsBsonRPC {
 			}
 			static uint32_t deserialize(std::map<std::string, T> &object, uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) {
 				BsonParser parser(payload, documentSize, offset);
-				ObjectHelper< std::map<std::string, T> > helper(object);
+				ObjectHelper< 0, std::map<std::string, T> > helper(object);
 				object.clear();
 				return parser.parse(&helper);
 			}
@@ -514,8 +531,27 @@ namespace JsBsonRPC {
 				object.clear();
 			}
 			void bsonParseHandle(uint8_t type, const std::string &name, const std::vector<unsigned char>& payload, uint32_t *offset, uint32_t docEndPos) override {
-				ObjectHelper<T>::deserialize(refObject[name], type, payload, offset, docEndPos);
+				ObjectHelper<internal::IsSerializableClass<T>::Result, T>::deserialize(refObject[name], type, payload, offset, docEndPos);
 			};
+		};
+
+		template<typename T>
+		struct ObjectHelper<1, T> {
+			static uint32_t serialize(std::vector<unsigned char> &payload, const std::string& key, const Serializable &object) {
+				size_t payloadLen = 1;
+				payload.push_back(internal::BSONTYPE_DOCUMENT);
+				payloadLen += serializeKey(payload, key);
+				payloadLen += object.serialize(payload);
+				return payloadLen;
+			}
+			static uint32_t deserialize(Serializable &object, uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) {
+				uint32_t payloadLen = object.deserialize(payload, *offset);
+				*offset += payloadLen;
+				return payloadLen;
+			}
+			static void objectClear(Serializable &object) {
+				object.serializableClearObjects();
+			}
 		};
 	}
 }
