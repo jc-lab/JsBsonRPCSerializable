@@ -125,7 +125,7 @@ namespace JsBsonRPC {
 			this->object = value;
 		}
 
-		const T& get() {
+		const T& get() const {
 			return this->object;
 		}
 
