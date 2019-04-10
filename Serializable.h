@@ -510,7 +510,7 @@ namespace JsBsonRPC {
 				for (std::map<std::string, T>::const_iterator iter = object.begin(); iter != object.end(); iter++)
 				{
 					// doucment
-					subDocumentSize += ObjectHelper<0, T>::serialize(payload, iter->first, iter->second);
+					subDocumentSize += ObjectHelper<internal::IsSerializableClass<T>::Result, T>::serialize(payload, iter->first, iter->second);
 				}
 				// DOCUMENT FOOTER : END
 				payload.push_back(0);
