@@ -49,6 +49,15 @@ namespace JsBsonRPC {
 			payload.push_back(0);
 			return key.length() + 1;
 		}
+
+		uint32_t serializeNullObject(std::vector<unsigned char> &payload, const std::string& key)
+		{
+			uint32_t payloadLen = 1 + sizeof(double);
+			int i;
+			payload.push_back(BSONTYPE_NULL);
+			payloadLen += serializeKey(payload, key);
+			return payloadLen;
+		}
 	}
 
 	Serializable::Serializable(const char *name, int64_t serialVersionUID)

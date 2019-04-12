@@ -49,16 +49,29 @@ namespace JsBsonRPC {
 		virtual Serializable *create() = 0;
 	};
 
+	class SerializableSmartpointerCreateFactory;
+#if defined(HAS_JSCPPUTILS) && HAS_JSCPPUTILS
+	class SerializableSmartpointerCreateFactory
+	{
+	public:
+		virtual JsCPPUtils::SmartPointer<Serializable> create() = 0;
+	};
+#endif
+
 	namespace internal {
 		class STypeCommon
 		{
 		protected:
 			std::string key;
 			SerializableCreateFactory *createFactory;
+			SerializableSmartpointerCreateFactory *createSmartpointerFactory;
 			bool _isnull;
 
 		public:
-			STypeCommon() {}
+			STypeCommon() {
+				this->createFactory = NULL;
+				this->createSmartpointerFactory = NULL;
+			}
 			virtual ~STypeCommon() {}
 
 			STypeCommon &setCreateFactory(SerializableCreateFactory *factory) {
@@ -66,6 +79,19 @@ namespace JsBsonRPC {
 				return *this;
 			}
 
+			STypeCommon &setCreateFactory(SerializableSmartpointerCreateFactory *factory) {
+				this->createSmartpointerFactory = factory;
+				return *this;
+			}
+
+			SerializableCreateFactory *getSerializableCreateFactory() {
+				return this->createFactory;
+			}
+
+			SerializableSmartpointerCreateFactory *getSerializableSmartpointerCreateFactory() {
+				return this->createSmartpointerFactory;
+			}
+			
 			void setMemberName(const char *name) {
 				if (key.empty())
 					key = name;
@@ -113,7 +139,7 @@ namespace JsBsonRPC {
 				setNull();
 				return 0;
 			}
-			return internal::ObjectHelper<internal::IsSerializableClass<T>::Result, T>::deserialize(object, type, payload, offset, documentSize);
+			return internal::ObjectHelper<internal::IsSerializableClass<T>::Result, T>::deserialize(this, object, type, payload, offset, documentSize);
 		}
 
 		void clear() override {
@@ -231,6 +257,8 @@ namespace JsBsonRPC {
 
 		extern uint32_t serializeKey(std::vector<unsigned char> &payload, const std::string& key);
 
+		extern uint32_t serializeNullObject(std::vector<unsigned char> &payload, const std::string& key);
+
 		template <typename T>
 		T readValue(const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) {
 			int i;
@@ -263,6 +291,32 @@ namespace JsBsonRPC {
 			uint32_t parse(BsonParseHandler *handler);
 		};
 
+		template<typename T>
+		class IsSerializableSmartpointerClass
+		{
+		public:
+			enum { Result = 0 };
+		};
+
+#if defined(HAS_JSCPPUTILS) && HAS_JSCPPUTILS
+		template<typename D>
+		class IsSerializableSmartpointerClass< JsCPPUtils::SmartPointer<D> >
+		{
+			class No { };
+			class Yes { No no[3]; };
+
+			static Yes Test(Serializable*); // not defined
+			static No Test(...); // not defined 
+
+			static void Constraints(D* p) { Serializable* pb = p; pb = p; }
+
+		public:
+			enum { Result = (sizeof(Test(static_cast<D*>(0))) == sizeof(Yes)) ? 1 : 0 };
+
+			IsSerializableSmartpointerClass() { void(*p)(D*) = Constraints; }
+		};
+#endif
+
 		template<typename D>
 		class IsSerializableClass
 		{
@@ -275,7 +329,7 @@ namespace JsBsonRPC {
 			static void Constraints(D* p) { Serializable* pb = p; pb = p; }
 
 		public:
-			enum { Result = (sizeof(Test(static_cast<D*>(0))) == sizeof(Yes)) ? 1 : 0 };
+			enum { Result = (sizeof(Test(static_cast<D*>(0))) == sizeof(Yes)) ? 1 : IsSerializableSmartpointerClass<D>::Result };
 
 			IsSerializableClass() { void(*p)(D*) = Constraints; }
 		};
@@ -297,7 +351,7 @@ namespace JsBsonRPC {
 					payload.push_back(*carr); \
 				return payloadLen; \
 			} \
-			static uint32_t deserialize(TYPE &object, uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) { \
+			static uint32_t deserialize(internal::STypeCommon *rootSType, TYPE &object, uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) { \
 				if(type == BSONTYPE_INT32) { \
 					object = readValue<int32_t>(payload, offset, documentSize); \
 					return sizeof(int32_t); \
@@ -333,7 +387,7 @@ namespace JsBsonRPC {
 					payload.push_back(*carr); \
 				return payloadLen; \
 			} \
-			static uint32_t deserialize(TYPE &object, uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) { \
+			static uint32_t deserialize(internal::STypeCommon *rootSType, TYPE &object, uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) { \
 				if(type == BSONTYPE_INT32) { \
 					object = readValue<INT32TYPE>(payload, offset, documentSize); \
 					return sizeof(int32_t); \
@@ -378,7 +432,7 @@ namespace JsBsonRPC {
 					payload.push_back(*carr);
 				return payloadLen;
 			}
-			static uint32_t deserialize(float &object, uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) {
+			static uint32_t deserialize(internal::STypeCommon *rootSType, float &object, uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) {
 				if (type == BSONTYPE_INT32) {
 					object = readValue<int32_t>(payload, offset, documentSize);
 					return sizeof(int32_t);
@@ -415,7 +469,7 @@ namespace JsBsonRPC {
 				payload.push_back(object ? 1 : 0);
 				return payloadLen;
 			}
-			static uint32_t deserialize(bool &object, uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) {
+			static uint32_t deserialize(internal::STypeCommon *rootSType, bool &object, uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) {
 				if (type == BSONTYPE_BOOL) {
 					object = readValue<unsigned char>(payload, offset, documentSize) ? true : false;
 					return 1;
@@ -448,7 +502,7 @@ namespace JsBsonRPC {
 				payload.push_back(0);
 				return payloadLen;
 			}
-			static uint32_t deserialize(std::string &object, uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) {
+			static uint32_t deserialize(internal::STypeCommon *rootSType, std::string &object, uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) {
 				uint32_t payloadSize = 0;
 				if (type == BSONTYPE_STRING_UTF8) {
 					uint32_t len = readValue<uint32_t>(payload, offset, documentSize);
@@ -492,7 +546,7 @@ namespace JsBsonRPC {
 				}
 				return payloadLen;
 			}
-			static uint32_t deserialize(std::vector<T> &object, uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) {
+			static uint32_t deserialize(internal::STypeCommon *rootSType, std::vector<T> &object, uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) {
 				uint32_t payloadSize = 0;
 				object.clear();
 				if (type == BSONTYPE_BINARY) {
@@ -530,8 +584,9 @@ namespace JsBsonRPC {
 
 		template<typename T>
 		struct ObjectHelper< 0, std::list<T> > : public BsonParseHandler {
+			internal::STypeCommon *rootSType;
 			std::list<T> &refObject;
-			ObjectHelper(std::list<T> &object) : refObject(object) {}
+			ObjectHelper(internal::STypeCommon *_rootSType, std::list<T> &object) : rootSType(_rootSType), refObject(object) {}
 
 			static uint32_t serialize(std::vector<unsigned char> &payload, const std::string& key, const std::list<T> &object) {
 				size_t offset;
@@ -548,7 +603,7 @@ namespace JsBsonRPC {
 				{
 					// doucment
 					_my_itoa(i, seqKey, sizeof(seqKey), 10);
-					subDocumentSize += ObjectHelper<0, T>::serialize(payload, seqKey, *iter);
+					subDocumentSize += ObjectHelper<internal::IsSerializableClass<T>::Result, T>::serialize(payload, seqKey, *iter);
 					i++;
 				}
 				// DOCUMENT FOOTER : END
@@ -560,9 +615,9 @@ namespace JsBsonRPC {
 				payloadLen += subDocumentSize;
 				return payloadLen;
 			}
-			static uint32_t deserialize(std::list<T> &object, uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) {
+			static uint32_t deserialize(internal::STypeCommon *rootSType, std::list<T> &object, uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) {
 				BsonParser parser(payload, documentSize, offset);
-				ObjectHelper< 0, std::list<T> > helper(object);
+				ObjectHelper< 0, std::list<T> > helper(rootSType, object);
 				object.clear();
 				return parser.parse(&helper);
 			}
@@ -571,15 +626,16 @@ namespace JsBsonRPC {
 			}
 			void bsonParseHandle(uint8_t type, const std::string &name, const std::vector<unsigned char>& payload, uint32_t *offset, uint32_t docEndPos) override {
 				T temp;
-				ObjectHelper<internal::IsSerializableClass<T>::Result, T>::deserialize(temp, type, payload, offset, docEndPos);
+				ObjectHelper<internal::IsSerializableClass<T>::Result, T>::deserialize(rootSType, temp, type, payload, offset, docEndPos);
 				refObject.push_back(temp);
 			};
 		};
 
 		template<typename T>
 		struct ObjectHelper< 0, std::map<std::string, T> > : public BsonParseHandler {
+			internal::STypeCommon *rootSType;
 			std::map<std::string, T> &refObject;
-			ObjectHelper(std::map<std::string, T> &object) : refObject(object) {}
+			ObjectHelper(internal::STypeCommon *_rootSType, std::map<std::string, T> &object) : rootSType(_rootSType), refObject(object) {}
 
 			static uint32_t serialize(std::vector<unsigned char> &payload, const std::string& key, const std::map<std::string, T> &object) {
 				size_t offset;
@@ -605,9 +661,9 @@ namespace JsBsonRPC {
 				payloadLen += subDocumentSize;
 				return payloadLen;
 			}
-			static uint32_t deserialize(std::map<std::string, T> &object, uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) {
+			static uint32_t deserialize(internal::STypeCommon *rootSType, std::map<std::string, T> &object, uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) {
 				BsonParser parser(payload, documentSize, offset);
-				ObjectHelper< 0, std::map<std::string, T> > helper(object);
+				ObjectHelper< 0, std::map<std::string, T> > helper(rootSType, object);
 				object.clear();
 				return parser.parse(&helper);
 			}
@@ -615,7 +671,7 @@ namespace JsBsonRPC {
 				object.clear();
 			}
 			void bsonParseHandle(uint8_t type, const std::string &name, const std::vector<unsigned char>& payload, uint32_t *offset, uint32_t docEndPos) override {
-				ObjectHelper<internal::IsSerializableClass<T>::Result, T>::deserialize(refObject[name], type, payload, offset, docEndPos);
+				ObjectHelper<internal::IsSerializableClass<T>::Result, T>::deserialize(rootSType, refObject[name], type, payload, offset, docEndPos);
 			};
 		};
 
@@ -628,7 +684,7 @@ namespace JsBsonRPC {
 				payloadLen += object.serialize(payload);
 				return payloadLen;
 			}
-			static uint32_t deserialize(Serializable &object, uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) {
+			static uint32_t deserialize(internal::STypeCommon *rootSType, Serializable &object, uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) {
 				uint32_t payloadLen = object.deserialize(payload, *offset);
 				*offset += payloadLen;
 				return payloadLen;
@@ -637,5 +693,37 @@ namespace JsBsonRPC {
 				object.serializableClearObjects();
 			}
 		};
+
+#if defined(HAS_JSCPPUTILS) && HAS_JSCPPUTILS
+		template<typename T>
+		struct ObjectHelper<1, JsCPPUtils::SmartPointer<T> > {
+			static uint32_t serialize(std::vector<unsigned char> &payload, const std::string& key, const JsCPPUtils::SmartPointer<T> &object) {
+				size_t payloadLen = 1;
+				if (!object) {
+					return serializeNullObject(payload, key);
+				}
+				payload.push_back(internal::BSONTYPE_DOCUMENT);
+				payloadLen += serializeKey(payload, key);
+				payloadLen += object->serialize(payload);
+				return payloadLen;
+			}
+			static uint32_t deserialize(internal::STypeCommon *rootSType, JsCPPUtils::SmartPointer<T> &object, uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) {
+				if (rootSType->getSerializableSmartpointerCreateFactory())
+				{
+					JsCPPUtils::SmartPointer<Serializable> newObj = rootSType->getSerializableSmartpointerCreateFactory()->create();
+					if (newObj != NULL) {
+						object.attach(newObj.detach());
+					}
+				}
+				
+				uint32_t payloadLen = object->deserialize(payload, *offset);
+				*offset += payloadLen;
+				return payloadLen;
+			}
+			static void objectClear(JsCPPUtils::SmartPointer<T> &object) {
+				object->serializableClearObjects();
+			}
+		};
+#endif
 	}
 }
