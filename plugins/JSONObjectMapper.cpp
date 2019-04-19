@@ -144,6 +144,10 @@ namespace JsBsonRPC {
 		else if (jsonValue.IsObject()) {
 			payloadSize = jsonObjectToBson(payload, key, jsonValue);
 		}
+		else if (jsonValue.IsNull()) {
+			payload.push_back(internal::BSONTYPE_NULL);
+			payloadSize += writeKeyToBson(payload, key);
+		}
 		else {
 			throw JSONObjectMapper::TypeNotSupportException();
 		}
