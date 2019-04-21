@@ -203,7 +203,7 @@ namespace JsBsonRPC {
 		std::vector<unsigned char> bsonPayload;
 		uint32_t offset = 0;
 		serialiable->serialize(bsonPayload);
-		internal::BsonParser parser(bsonPayload, bsonPayload.size(), &offset);
+		internal::BsonParser parser(bsonPayload, bsonPayload.size(), &offset, DeserializationConfig::getDefaultConfigure());
 		parser.parse(&convertContext);
 	}
 
@@ -218,7 +218,7 @@ namespace JsBsonRPC {
 		serialiable->deserialize(payload);
 	}
 
-	void JSONObjectMapper::ConvertContext::bsonParseHandle(uint8_t type, const std::string &name, const std::vector<unsigned char>& payload, uint32_t *offset, uint32_t docEndPos) throw(TypeNotSupportException, ConvertException)
+	bool JSONObjectMapper::ConvertContext::bsonParseHandle(uint8_t type, const std::string &name, const std::vector<unsigned char>& payload, uint32_t *offset, uint32_t docEndPos) throw(TypeNotSupportException, ConvertException)
 	{
 		rapidjson::Value jsonKey;
 		rapidjson::Value jsonValue;
@@ -245,7 +245,7 @@ namespace JsBsonRPC {
 		{
 			rapidjson::Document subDoc;
 			ConvertContext convertContext(subDoc, internal::BSONTYPE_DOCUMENT);
-			internal::BsonParser parser(payload, payload.size(), offset);
+			internal::BsonParser parser(payload, payload.size(), offset, DeserializationConfig::getDefaultConfigure());
 			parser.parse(&convertContext);
 			jsonValue.CopyFrom(convertContext.doc, doc.GetAllocator());
 		}
@@ -254,7 +254,7 @@ namespace JsBsonRPC {
 		{
 			rapidjson::Document subDoc;
 			ConvertContext convertContext(subDoc, internal::BSONTYPE_ARRAY);
-			internal::BsonParser parser(payload, payload.size(), offset);
+			internal::BsonParser parser(payload, payload.size(), offset, DeserializationConfig::getDefaultConfigure());
 			parser.parse(&convertContext);
 			jsonValue.CopyFrom(convertContext.doc, doc.GetAllocator());
 		}
@@ -298,6 +298,7 @@ namespace JsBsonRPC {
 		}else{
 			doc.AddMember(jsonKey, jsonValue, doc.GetAllocator());
 		}
+		return true;
 	}
 #endif
 

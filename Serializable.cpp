@@ -27,6 +27,33 @@
 
 namespace JsBsonRPC {
 
+	DeserializationConfig DeserializationConfig::FAIL_ON_UNKNOWN_PROPERTIES(true);
+
+	DeserializationConfig::BuildContext *DeserializationConfig::getBuildContext()
+	{
+		static BuildContext *buildContext = new BuildContext();
+		return buildContext;
+	}
+
+	DeserializationConfig::DeserializationConfig(bool defaultValue)
+	{
+		BuildContext *buildContext = getBuildContext();
+		this->defaultValue = defaultValue;
+		this->mask = (1 << buildContext->ordinal++);
+		buildContext->list.push_back(*this);
+	}
+
+	uint32_t DeserializationConfig::getDefaultConfigure()
+	{
+		BuildContext *buildContext = getBuildContext();
+		uint32_t mask = 0;
+		for (std::list<DeserializationConfig>::const_iterator iter = buildContext->list.begin(); iter != buildContext->list.end(); iter++)
+		{
+			mask |= iter->getMask();
+		}
+		return mask;
+	}
+
 	namespace internal {
 		int _my_itoa(
 			int    value,
@@ -64,11 +91,19 @@ namespace JsBsonRPC {
 	{
 		m_name = name;
 		m_serialVersionUID = serialVersionUID;
+		m_deserializationConfigs = DeserializationConfig::getDefaultConfigure();
 	}
 
 	Serializable::~Serializable()
 	{
+	}
 
+	void Serializable::serializableConfigure(const DeserializationConfig &deserializationConfig, bool enable)
+	{
+		if (enable)
+			m_deserializationConfigs |= deserializationConfig.getMask();
+		else
+			m_deserializationConfigs &= ~deserializationConfig.getMask();
 	}
 
 	internal::STypeCommon &Serializable::serializableMapMember(const char *name, internal::STypeCommon &object)
@@ -113,11 +148,11 @@ namespace JsBsonRPC {
 	size_t Serializable::deserialize(const std::vector<unsigned char>& payload, size_t offset) throw (ParseException)
 	{
 		uint32_t tempOffset = offset;
-		internal::BsonParser parser(payload, payload.size(), &tempOffset);
+		internal::BsonParser parser(payload, payload.size(), &tempOffset, m_deserializationConfigs);
 		return parser.parse(this);
 	}
 
-	void Serializable::bsonParseHandle(uint8_t type, const std::string &name, const std::vector<unsigned char>& payload, uint32_t *offset, uint32_t docEndPos)
+	bool Serializable::bsonParseHandle(uint8_t type, const std::string &name, const std::vector<unsigned char>& payload, uint32_t *offset, uint32_t docEndPos)
 	{
 		for (std::list<internal::STypeCommon*>::const_iterator iterMem = m_members.begin(); iterMem != m_members.end(); iterMem++)
 		{
@@ -125,9 +160,10 @@ namespace JsBsonRPC {
 			if (stypeCommon->getMemberName() == name)
 			{
 				stypeCommon->deserialize(type, payload, offset, docEndPos);
-				break;
+				return true;
 			}
 		}
+		return false;
 	}
 
 	uint32_t internal::BsonParser::parse(BsonParseHandler *handler)
@@ -151,7 +187,47 @@ namespace JsBsonRPC {
 					break;
 				ename.push_back(c);
 			}
-			handler->bsonParseHandle(type, ename, payload, offset, docEndPos);
+			if (!handler->bsonParseHandle(type, ename, payload, offset, docEndPos))
+			{
+				switch (type)
+				{
+				case BsonTypes::BSONTYPE_DOUBLE:
+					*offset += 8;
+					break;
+				case BsonTypes::BSONTYPE_STRING_UTF8:
+					*offset += readValue<uint32_t>(payload, offset, docEndPos);
+					break;
+				case BsonTypes::BSONTYPE_DOCUMENT:
+					*offset += readValue<uint32_t>(payload, offset, docEndPos) - 4;
+					break;
+				case BsonTypes::BSONTYPE_ARRAY:
+					*offset += readValue<uint32_t>(payload, offset, docEndPos) - 4;
+					break;
+				case BsonTypes::BSONTYPE_BINARY:
+					*offset += 1 + readValue<uint32_t>(payload, offset, docEndPos);
+					break;
+				case BsonTypes::BSONTYPE_UTCDATETIME:
+					*offset += 8;
+					break;
+				case BsonTypes::BSONTYPE_BOOL:
+					*offset += 1;
+					break;
+				case BsonTypes::BSONTYPE_NULL:
+					break;
+				case BsonTypes::BSONTYPE_INT32:
+					*offset += 4;
+					break;
+				case BsonTypes::BSONTYPE_TIMESTAMP:
+					*offset += 8;
+					break;
+				case BsonTypes::BSONTYPE_INT64:
+					*offset += 8;
+					break;
+				default:
+					throw Serializable::ParseException();
+					break;
+				}
+			}
 		}
 		if((docEndPos - *offset) != 0)
 			throw Serializable::ParseException();

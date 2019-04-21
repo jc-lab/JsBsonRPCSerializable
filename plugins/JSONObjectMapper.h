@@ -55,7 +55,7 @@ namespace JsBsonRPC {
 				else if (_bsonType == internal::BSONTYPE_ARRAY)
 					doc.SetArray();
 			}
-			void bsonParseHandle(uint8_t type, const std::string &name, const std::vector<unsigned char>& payload, uint32_t *offset, uint32_t docEndPos) throw(TypeNotSupportException, ConvertException) override;
+			bool bsonParseHandle(uint8_t type, const std::string &name, const std::vector<unsigned char>& payload, uint32_t *offset, uint32_t docEndPos) throw(TypeNotSupportException, ConvertException) override;
 		};
 
 	public:

@@ -41,8 +41,30 @@
 
 namespace JsBsonRPC {
 
+	class DeserializationConfig {
+	public:
+		struct BuildContext {
+			int ordinal;
+			std::list<DeserializationConfig> list;
+		};
+	private:
+		bool defaultValue;
+		uint32_t mask;
+
+		static BuildContext *getBuildContext();
+
+	public:
+		DeserializationConfig(bool defaultValue);
+		uint32_t getMask() const { return mask; }
+		bool getDefaultValue() const { return defaultValue; }
+		
+	public:
+		static uint32_t getDefaultConfigure();
+		static DeserializationConfig FAIL_ON_UNKNOWN_PROPERTIES;
+	};
+
 	class Serializable;
-	
+
 	class SerializableCreateFactory
 	{
 	public:
@@ -116,7 +138,7 @@ namespace JsBsonRPC {
 
 		class BsonParseHandler {
 		public:
-			virtual void bsonParseHandle(uint8_t type, const std::string &name, const std::vector<unsigned char>& payload, uint32_t *offset, uint32_t docEndPos) = 0;
+			virtual bool bsonParseHandle(uint8_t type, const std::string &name, const std::vector<unsigned char>& payload, uint32_t *offset, uint32_t docEndPos) = 0;
 		};
 	}
 
@@ -180,6 +202,8 @@ namespace JsBsonRPC {
 		int64_t m_serialVersionUID;
 		std::list<internal::STypeCommon*> m_members;
 
+		uint32_t m_deserializationConfigs;
+
 	protected:
 #if (__cplusplus >= 201103) || (__cplusplus == 199711) || (defined(HAS_MOVE_SEMANTICS) && HAS_MOVE_SEMANTICS == 1)
 		explicit Serializable(Serializable&& _ref)
@@ -187,7 +211,7 @@ namespace JsBsonRPC {
 			assert(false);
 		}
 #endif
-		void bsonParseHandle(uint8_t type, const std::string &name, const std::vector<unsigned char>& payload, uint32_t *offset, uint32_t docEndPos) override;
+		bool bsonParseHandle(uint8_t type, const std::string &name, const std::vector<unsigned char>& payload, uint32_t *offset, uint32_t docEndPos) override;
 
 	private:
 		Serializable(const Serializable &obj) {
@@ -202,6 +226,7 @@ namespace JsBsonRPC {
 			assert(this->m_name == obj.m_name);
 			assert(this->m_serialVersionUID == obj.m_serialVersionUID);
 			std::vector<uint8_t> payload;
+			this->m_deserializationConfigs = obj.m_deserializationConfigs;
 			obj.serialize(payload);
 			this->deserialize(payload);
 			return *this;
@@ -220,6 +245,8 @@ namespace JsBsonRPC {
 		int64_t serializableGetSerialVersionUID() {
 			return m_serialVersionUID;
 		}
+
+		void serializableConfigure(const DeserializationConfig &deserializationConfig, bool enable);
 
 	protected:
 		internal::STypeCommon &serializableMapMember(const char *name, internal::STypeCommon &object);
@@ -273,6 +300,8 @@ namespace JsBsonRPC {
 
 		class BsonParser {
 		private:
+			uint32_t deserializationConfigs;
+
 			const std::vector<unsigned char> &payload;
 			uint32_t docSize;
 			uint32_t rootDocSize;
@@ -280,8 +309,9 @@ namespace JsBsonRPC {
 			uint32_t docEndPos;
 
 		public:
-			BsonParser(const std::vector<unsigned char> &_payload, uint32_t rootDocSize, uint32_t *rootDocOffset) : payload(_payload)
+			BsonParser(const std::vector<unsigned char> &_payload, uint32_t rootDocSize, uint32_t *rootDocOffset, uint32_t deserializationConfigs) : payload(_payload)
 			{
+				this->deserializationConfigs = deserializationConfigs;
 				this->docSize = 0;
 				this->docEndPos = 0;
 				this->rootDocSize = rootDocSize;
@@ -616,7 +646,7 @@ namespace JsBsonRPC {
 				return payloadLen;
 			}
 			static uint32_t deserialize(internal::STypeCommon *rootSType, std::list<T> &object, uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) {
-				BsonParser parser(payload, documentSize, offset);
+				BsonParser parser(payload, documentSize, offset, DeserializationConfig::getDefaultConfigure());
 				ObjectHelper< 0, std::list<T> > helper(rootSType, object);
 				object.clear();
 				return parser.parse(&helper);
@@ -624,10 +654,11 @@ namespace JsBsonRPC {
 			static void objectClear(std::list<T> &object) {
 				object.clear();
 			}
-			void bsonParseHandle(uint8_t type, const std::string &name, const std::vector<unsigned char>& payload, uint32_t *offset, uint32_t docEndPos) override {
+			bool bsonParseHandle(uint8_t type, const std::string &name, const std::vector<unsigned char>& payload, uint32_t *offset, uint32_t docEndPos) override {
 				T temp;
 				ObjectHelper<internal::IsSerializableClass<T>::Result, T>::deserialize(rootSType, temp, type, payload, offset, docEndPos);
 				refObject.push_back(temp);
+				return true;
 			};
 		};
 
@@ -662,7 +693,7 @@ namespace JsBsonRPC {
 				return payloadLen;
 			}
 			static uint32_t deserialize(internal::STypeCommon *rootSType, std::map<std::string, T> &object, uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) {
-				BsonParser parser(payload, documentSize, offset);
+				BsonParser parser(payload, documentSize, offset, DeserializationConfig::getDefaultConfigure());
 				ObjectHelper< 0, std::map<std::string, T> > helper(rootSType, object);
 				object.clear();
 				return parser.parse(&helper);
@@ -670,8 +701,9 @@ namespace JsBsonRPC {
 			static void objectClear(std::map<std::string, T> &object) {
 				object.clear();
 			}
-			void bsonParseHandle(uint8_t type, const std::string &name, const std::vector<unsigned char>& payload, uint32_t *offset, uint32_t docEndPos) override {
+			bool bsonParseHandle(uint8_t type, const std::string &name, const std::vector<unsigned char>& payload, uint32_t *offset, uint32_t docEndPos) override {
 				ObjectHelper<internal::IsSerializableClass<T>::Result, T>::deserialize(rootSType, refObject[name], type, payload, offset, docEndPos);
+				return true;
 			};
 		};
 
