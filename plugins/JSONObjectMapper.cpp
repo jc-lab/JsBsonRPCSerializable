@@ -81,6 +81,11 @@ namespace JsBsonRPC {
 			payload.push_back(carr[i]);
 		return i;
 	}
+	template<>
+	static uint32_t writeValueToBson<bool>(std::vector<unsigned char> &payload, const bool& value) {
+		payload.push_back(value ? 1 : 0);
+		return 1;
+	}
 
 	static uint32_t writeKeyToBson(std::vector<unsigned char> &payload, const std::string &key)
 	{
@@ -147,6 +152,11 @@ namespace JsBsonRPC {
 		else if (jsonValue.IsNull()) {
 			payload.push_back(internal::BSONTYPE_NULL);
 			payloadSize += writeKeyToBson(payload, key);
+		}
+		else if (jsonValue.IsBool()) {
+			payload.push_back(internal::BSONTYPE_BOOL);
+			payloadSize += writeKeyToBson(payload, key);
+			payloadSize += writeValueToBson<bool>(payload, jsonValue.GetBool());
 		}
 		else {
 			throw JSONObjectMapper::TypeNotSupportException();
