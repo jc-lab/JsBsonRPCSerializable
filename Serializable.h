@@ -248,6 +248,8 @@ namespace JsBsonRPC {
 
 		void serializableConfigure(const DeserializationConfig &deserializationConfig, bool enable);
 
+		static bool readMetadata(const std::vector<unsigned char>& payload, size_t offset, std::string *pName = NULL, int64_t *pSerialVersionUID = NULL, uint32_t *pDocSize = NULL);
+
 	protected:
 		internal::STypeCommon &serializableMapMember(const char *name, internal::STypeCommon &object);
 
