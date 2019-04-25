@@ -79,7 +79,7 @@ namespace JsBsonRPC {
 
 		uint32_t serializeNullObject(std::vector<unsigned char> &payload, const std::string& key)
 		{
-			uint32_t payloadLen = 1 + sizeof(double);
+			uint32_t payloadLen = 1;
 			int i;
 			payload.push_back(BSONTYPE_NULL);
 			payloadLen += serializeKey(payload, key);
@@ -260,6 +260,7 @@ namespace JsBsonRPC {
 		uint32_t rootDocSize;
 		uint32_t parseOffset = offset;
 		uint32_t docEndPos;
+		std::string ename;
 
 		std::string sname;
 		int64_t sver = 0;
@@ -274,7 +275,7 @@ namespace JsBsonRPC {
 			uint8_t type = payload[(parseOffset)++];
 			if (type == 0)
 				break;
-			std::string ename;
+			ename.clear();
 			while (1)
 			{
 				char c;
@@ -287,7 +288,6 @@ namespace JsBsonRPC {
 			}
 			if (ename == "@jsbsonrpcsname")
 			{
-				std::string sname;
 				internal::ObjectHelper<0, std::string>::deserialize(NULL, sname, type, payload, &parseOffset, docEndPos);
 				if (pName)
 					*pName = sname;
@@ -295,7 +295,7 @@ namespace JsBsonRPC {
 			}
 			else if (ename == "@jsbsonrpcsver")
 			{
-				int64_t sver = internal::readValue<int64_t>(payload, &parseOffset, docEndPos);
+				sver = internal::readValue<int64_t>(payload, &parseOffset, docEndPos);
 				if (pSerialVersionUID)
 					*pSerialVersionUID = sver;
 				readFlag |= 2;
