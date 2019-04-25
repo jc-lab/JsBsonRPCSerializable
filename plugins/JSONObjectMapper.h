@@ -56,6 +56,8 @@ namespace JsBsonRPC {
 					doc.SetArray();
 			}
 			bool bsonParseHandle(uint8_t type, const std::string &name, const std::vector<unsigned char>& payload, uint32_t *offset, uint32_t docEndPos) throw(TypeNotSupportException, ConvertException) override;
+			void serializableNameHandle(const std::string& attrName, const std::string& value) override;
+			void serializableSerialVersionUIDHandle(const std::string& attrName, int64_t value) override;
 		};
 
 	public:

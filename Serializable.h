@@ -77,6 +77,7 @@ namespace JsBsonRPC {
 	{
 	public:
 		virtual JsCPPUtils::SmartPointer<Serializable> create() = 0;
+		virtual JsCPPUtils::SmartPointer<Serializable> create(const std::string& name, int64_t serialVersionUID) { return NULL; }
 	};
 #endif
 
@@ -138,6 +139,8 @@ namespace JsBsonRPC {
 
 		class BsonParseHandler {
 		public:
+			virtual void serializableNameHandle(const std::string& attrName, const std::string& value) {}
+			virtual void serializableSerialVersionUIDHandle(const std::string& attrName, int64_t value) {}
 			virtual bool bsonParseHandle(uint8_t type, const std::string &name, const std::vector<unsigned char>& payload, uint32_t *offset, uint32_t docEndPos) = 0;
 		};
 	}
@@ -744,7 +747,12 @@ namespace JsBsonRPC {
 			static uint32_t deserialize(internal::STypeCommon *rootSType, JsCPPUtils::SmartPointer<T> &object, uint8_t type, const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) {
 				if (rootSType->getSerializableSmartpointerCreateFactory())
 				{
-					JsCPPUtils::SmartPointer<Serializable> newObj = rootSType->getSerializableSmartpointerCreateFactory()->create();
+					std::string sname;
+					int64_t sver;
+					Serializable::readMetadata(payload, *offset, &sname, &sver);
+					JsCPPUtils::SmartPointer<Serializable> newObj = rootSType->getSerializableSmartpointerCreateFactory()->create(sname, sver);
+					if (!newObj)
+						newObj = rootSType->getSerializableSmartpointerCreateFactory()->create();
 					if (newObj != NULL) {
 						object.attach(newObj.detach());
 					}

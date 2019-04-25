@@ -239,9 +239,11 @@ namespace JsBsonRPC {
 			{
 				std::string sname;
 				internal::ObjectHelper<0, std::string>::deserialize(NULL, sname, type, payload, offset, docEndPos);
+				handler->serializableNameHandle(ename, sname);
 			}else if (ename == "@jsbsonrpcsver")
 			{
 				int64_t sver = readValue<int64_t>(payload, offset, docEndPos);
+				handler->serializableSerialVersionUIDHandle(ename, sver);
 			}else if (!handler->bsonParseHandle(type, ename, payload, offset, docEndPos))
 			{
 				internal::dummyRead(payload, offset, docEndPos, type);

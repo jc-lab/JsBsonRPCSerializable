@@ -232,6 +232,23 @@ namespace JsBsonRPC {
 		serialiable->deserialize(payload);
 	}
 
+	void JSONObjectMapper::ConvertContext::serializableNameHandle(const std::string& attrName, const std::string& value)
+	{
+		rapidjson::Value jsonKey;
+		rapidjson::Value jsonValue;
+		jsonKey.SetString(attrName.c_str(), attrName.length(), doc.GetAllocator());
+		jsonValue.SetString(value.c_str(), value.length(), doc.GetAllocator());
+		doc.AddMember(jsonKey, jsonValue, doc.GetAllocator());
+	}
+	void JSONObjectMapper::ConvertContext::serializableSerialVersionUIDHandle(const std::string& attrName, int64_t value)
+	{
+		rapidjson::Value jsonKey;
+		rapidjson::Value jsonValue;
+		jsonKey.SetString(attrName.c_str(), attrName.length(), doc.GetAllocator());
+		jsonValue.SetInt64(value);
+		doc.AddMember(jsonKey, jsonValue, doc.GetAllocator());
+	}
+
 	bool JSONObjectMapper::ConvertContext::bsonParseHandle(uint8_t type, const std::string &name, const std::vector<unsigned char>& payload, uint32_t *offset, uint32_t docEndPos) throw(TypeNotSupportException, ConvertException)
 	{
 		rapidjson::Value jsonKey;
