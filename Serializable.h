@@ -763,7 +763,7 @@ namespace JsBsonRPC {
 				return payloadLen;
 			}
 			static void objectClear(JsCPPUtils::SmartPointer<T> &object) {
-				object->serializableClearObjects();
+				object = NULL;
 			}
 		};
 #endif
