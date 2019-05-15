@@ -82,6 +82,8 @@ namespace JsBsonRPC {
 #endif
 
 	namespace internal {
+		extern uint32_t serializeNullObject(std::vector<unsigned char> &payload, const std::string& key);
+
 		class STypeCommon
 		{
 		protected:
@@ -154,6 +156,8 @@ namespace JsBsonRPC {
 	public:
 		uint32_t serialize(std::vector<unsigned char> &payload) const override
 		{
+			if (this->isNull())
+				return serializeNullObject(payload, this->key);
 			return internal::ObjectHelper<internal::IsSerializableClass<T>::Result, T>::serialize(payload, this->key, this->object);
 		}
 
@@ -288,8 +292,6 @@ namespace JsBsonRPC {
 		);
 
 		extern uint32_t serializeKey(std::vector<unsigned char> &payload, const std::string& key);
-
-		extern uint32_t serializeNullObject(std::vector<unsigned char> &payload, const std::string& key);
 
 		template <typename T>
 		T readValue(const std::vector<unsigned char> &payload, uint32_t *offset, uint32_t documentSize) {
