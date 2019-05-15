@@ -157,7 +157,7 @@ namespace JsBsonRPC {
 		uint32_t serialize(std::vector<unsigned char> &payload) const override
 		{
 			if (this->isNull())
-				return serializeNullObject(payload, this->key);
+				return internal::serializeNullObject(payload, this->key);
 			return internal::ObjectHelper<internal::IsSerializableClass<T>::Result, T>::serialize(payload, this->key, this->object);
 		}
 
