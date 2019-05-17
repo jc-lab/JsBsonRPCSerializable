@@ -186,7 +186,7 @@ namespace JsBsonRPC {
 		}
 
 		T& ref() {
-			this->_isnull = true;
+			this->_isnull = false;
 			return this->object;
 		}
 
