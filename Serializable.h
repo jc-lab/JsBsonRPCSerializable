@@ -191,6 +191,7 @@ namespace JsBsonRPC {
 		}
 
 		void set(const T& value) {
+			this->_isnull = false;
 			this->object = value;
 		}
 	};
