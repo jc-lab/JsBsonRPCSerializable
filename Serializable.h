@@ -168,6 +168,7 @@ namespace JsBsonRPC {
 				setNull();
 				return 0;
 			}
+			this->_isnull = false;
 			return internal::ObjectHelper<internal::IsSerializableClass<T>::Result, T>::deserialize(this, object, type, payload, offset, documentSize);
 		}
 
