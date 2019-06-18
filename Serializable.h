@@ -638,7 +638,7 @@ namespace JsBsonRPC {
 				offset = payload.size();
 				// DOCUMENT HEADER : SIZE
 				payload.push_back(0); payload.push_back(0); payload.push_back(0); payload.push_back(0);
-				for (std::list<T>::const_iterator iter = object.begin(); iter != object.end(); iter++)
+				for (typename std::list<T>::const_iterator iter = object.begin(); iter != object.end(); iter++)
 				{
 					// doucment
 					_my_itoa(i, seqKey, sizeof(seqKey), 10);
@@ -687,7 +687,7 @@ namespace JsBsonRPC {
 
 				// DOCUMENT HEADER : SIZE
 				payload.push_back(0); payload.push_back(0); payload.push_back(0); payload.push_back(0);
-				for (std::map<std::string, T>::const_iterator iter = object.begin(); iter != object.end(); iter++)
+				for (typename std::map<std::string, T>::const_iterator iter = object.begin(); iter != object.end(); iter++)
 				{
 					// doucment
 					subDocumentSize += ObjectHelper<internal::IsSerializableClass<T>::Result, T>::serialize(payload, iter->first, iter->second);
