@@ -62,7 +62,7 @@ namespace JsBsonRPC {
 			int    radix
 		)
 		{
-#if defined(WIN32) && defined(_MSC_VER)
+#if defined(_WIN32) && defined(_MSC_VER)
 			return _itoa_s(value, buf, bufSize, radix);
 #else
 			if (itoa(value, buf, radix))
