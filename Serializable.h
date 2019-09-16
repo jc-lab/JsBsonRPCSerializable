@@ -464,7 +464,7 @@ namespace JsBsonRPC {
 				uint32_t payloadLen = 1 + sizeof(double);
 				int i;
 				double dblValue = object;
-				const unsigned char *carr = (const unsigned char*)&object;
+				const unsigned char *carr = (const unsigned char*)& dblValue;
 				payload.push_back(BSONTYPE_DOUBLE);
 				payloadLen += serializeKey(payload, key);
 				for (i = 0; i<sizeof(dblValue); i++, carr++)
